@@ -90,11 +90,16 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
   const variantLabel = mergedLabelMap("variant_id", "variant_name");
   const classLabel = mergedLabelMap("class_id", "class_name");
 
+  // Organizer-ruled duplicates: excluded from all views (reason lives in the
+  // entry's own notes field).
+  const IGNORED_ENTRIES = new Set(["E-000679"]);
+
   // Certificate rows: one per entrant per entry; group entries (members stripped
   // server-side) collapse to a single flagged group_name row.
   const certRows = [];
   for (const rec of entriesRaw) {
     const v = rec.values;
+    if (IGNORED_ENTRIES.has(v.entry_number)) continue;
     const ids = entrantIdList(v.entrant_ids);
     const paid = Boolean(v._invoice_number);
     const common = {
