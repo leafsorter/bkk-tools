@@ -180,8 +180,11 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
     Cer_Item: (r) => [r.categoryRaw, r.item ? r.item[0].toUpperCase() + r.item.slice(1) : ""].filter(Boolean).join(" – "),
     Cer_Level: (r) => r.klassRaw || (r.grade ? "Gr " + r.grade : ""),
   };
+  // Whitespace-sanitize every derived value: collapse runs, trim ends.
   for (const row of certRows) {
-    for (const [key, fn] of Object.entries(CERT_DERIVED)) row[key] = fn(row);
+    for (const [key, fn] of Object.entries(CERT_DERIVED)) {
+      row[key] = String(fn(row) ?? "").replace(/\s+/g, " ").trim();
+    }
   }
 
   // Planning pivot: school x division entry/entrant counts off the same cert rows.
