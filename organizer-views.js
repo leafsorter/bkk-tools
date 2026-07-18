@@ -422,7 +422,11 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
     else renderPlan();
   }
   root.querySelectorAll(".tab").forEach((t) => {
-    t.onclick = () => { state.tab = t.dataset.tab; render(); };
+    t.onclick = () => {
+      state.tab = t.dataset.tab;
+      if (root.classList.contains("pagemode")) setPageMode(false);
+      else render();
+    };
   });
   // Page mode: collapse the overlay to just the toolbar and reveal the original
   // admin page beneath it (body pushed down so nothing is covered).
