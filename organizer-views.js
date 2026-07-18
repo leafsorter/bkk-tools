@@ -98,6 +98,8 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
       title: typeof v.title === "string" ? v.title : "",
       invoice: v._invoice_number || "",
       paid,
+      memberId: v.member_id != null ? String(v.member_id) : "",
+      participants: v.participants_count != null ? v.participants_count : "",
     };
     if (ids.length === 0) {
       certRows.push({
@@ -137,9 +139,13 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
 
   // FE-derived certificate columns, computed from the snapshot/join data.
   // Extend here: key = exact CSV header, value = fn(row) -> cell text.
+  // Qty assumption (editable): individuals get one A4 each, groups one A3.
   const CERT_DERIVED = {
     Certificate_Name: (r) => (r.isGroup ? r.first : (r.first + " " + r.last).trim()),
     Certificate_Title: (r) => r.title.trim(),
+    Qty_A4: (r) => (r.isGroup ? 0 : 1),
+    Qty_A3: (r) => (r.isGroup ? 1 : 0),
+    Participants: (r) => r.participants,
   };
   for (const row of certRows) {
     for (const [key, fn] of Object.entries(CERT_DERIVED)) row[key] = fn(row);
@@ -196,6 +202,7 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
 #${ROOT_ID} select{font:inherit;padding:2px}
 #${ROOT_ID} .sum{font-weight:600;margin-left:auto}
 #${ROOT_ID} .daytotals{display:flex;gap:14px;flex-wrap:wrap;padding:8px 0;font-weight:600}
+#${ROOT_ID} .lnk{color:#1a6fb5;text-decoration:underline;cursor:pointer}
 </style>
 <header>
   <b>BKK Organizer Views</b>
@@ -244,9 +251,34 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
     ["school", "School"], ["grade", "Grade"],
     ["division", "Division"], ["category", "Category"], ["klass", "Class"],
     ["variant", "Variant"], ["item", "Item"],
-    ["entryNo", "E#"], ["invoice", "Invoice"], ["suspect", "Title_Flag"],
+    ["entryNo", "E#"], ["memberId", "Member"], ["invoice", "Invoice"], ["suspect", "Title_Flag"],
   ];
   let certSort = { key: "school", dir: 1 };
+
+  // E# opens the admin block's entry drawer; Member opens its member modal.
+  // Both links only work for rows with an E# (the block search targets it).
+  function certCell(r, key) {
+    const val = String(r[key] ?? "");
+    if (key === "entryNo" && val) return `<a class="lnk" data-open="entry" data-e="${val}">${val}</a>`;
+    if (key === "memberId" && val && r.entryNo) return `<a class="lnk" data-open="member" data-e="${r.entryNo}">${val}</a>`;
+    return val;
+  }
+
+  function openInAdminBlock(entryNo, what) {
+    const blockRoot = document.getElementById("dt-block-blk_4963fa51e0e44103")?.shadowRoot;
+    if (!blockRoot) return;
+    const search = blockRoot.querySelector(".dt-adm-search");
+    search.value = entryNo;
+    search.dispatchEvent(new Event("input", { bubbles: true }));
+    setPageMode(true);
+    setTimeout(() => {
+      const td = [...blockRoot.querySelectorAll(".dt-admin-table tbody td")]
+        .find((t) => t.textContent.trim() === entryNo);
+      if (!td) return;
+      const target = what === "member" ? td.parentElement.querySelector(".dt-adm-link") : td;
+      target?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }, 700);
+  }
 
   function renderCert() {
     const rows = certFiltered().slice().sort((a, b) => {
@@ -276,9 +308,12 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
     }</tr></thead><tbody>${
       rows.map((r) =>
         `<tr class="${r.isGroup ? "grp" : ""}${r.suspect ? " sus" : ""}">${
-          CERT_COLS.map((c) => `<td>${String(r[c[0]] ?? "")}</td>`).join("")
+          CERT_COLS.map((c) => `<td>${certCell(r, c[0])}</td>`).join("")
         }</tr>`).join("")
     }</tbody></table>`;
+    body.querySelectorAll("[data-open]").forEach((a) => {
+      a.onclick = () => openInAdminBlock(a.dataset.e, a.dataset.open);
+    });
     body.querySelectorAll("th").forEach((th) => {
       th.onclick = () => {
         const k = th.dataset.k;
