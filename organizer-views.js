@@ -143,12 +143,12 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
 
   // FE-derived certificate columns, computed from the snapshot/join data.
   // Extend here: key = exact CSV header, value = fn(row) -> cell text.
-  // Qty assumption (editable): individuals get one A4 each, groups one A3.
+  // Qty assumption (editable): individuals get one A4 each, groups one A5.
   const CERT_DERIVED = {
     Certificate_Name: (r) => (r.isGroup ? r.first : (r.first + " " + r.last).trim()),
     Certificate_Title: (r) => r.title.trim(),
     Qty_A4: (r) => (r.isGroup ? 0 : 1),
-    Qty_A3: (r) => (r.isGroup ? 1 : 0),
+    Qty_A5: (r) => (r.isGroup ? 1 : 0),
     Participants: (r) => r.participants,
   };
   for (const row of certRows) {
