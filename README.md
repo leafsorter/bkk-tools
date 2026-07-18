@@ -10,7 +10,7 @@ delivery pipe. `./deploy.sh` = copy → commit → push.
 Signed in on `bosveldkunste.co.za/admin-entries`, run (console or bookmarklet):
 
 ```js
-fetch('https://raw.githubusercontent.com/redbirdlife/bkk-tools/main/organizer-views.js?' + Date.now())
+fetch('https://raw.githubusercontent.com/leafsorter/bkk-tools/main/organizer-views.js?' + Date.now())
   .then(r => r.text()).then(eval)
 ```
 
