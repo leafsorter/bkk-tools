@@ -212,7 +212,8 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
       if (div && (cat.toLowerCase() === div.toLowerCase() || cat.toLowerCase().startsWith(div.toLowerCase() + " "))) {
         cat = cat.slice(div.length).trim();
       }
-      return [cat, r.item ? r.item[0].toUpperCase() + r.item.slice(1) : ""].filter(Boolean).join(" – ");
+      const item = (r.item || "").trim();
+      return [cat.trim(), item ? item[0].toUpperCase() + item.slice(1) : ""].filter(Boolean).join(" – ");
     },
     Cer_Level: (r) => r.klassRaw || (r.grade ? "Gr " + r.grade : ""),
   };
