@@ -48,9 +48,15 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
   const schoolById = new Map(schoolsRaw.map((r) => [r.id, r.values]));
   const schoolName = (id) => (id && schoolById.get(id) ? schoolById.get(id).name : "");
 
-  // picklist_label arrives as an i18n object {af, en}; prefer Afrikaans.
-  function localized(v) {
-    if (v && typeof v === "object") return v.af ?? v.en ?? Object.values(v)[0] ?? "";
+  // picklist_label is an i18n object with MIXED key conventions across
+  // picklists: {af, en} on some, {afr, eng} on others. Afrikaans preferred,
+  // except dance items which are always English.
+  function localized(v, pref = "af") {
+    if (v && typeof v === "object") {
+      const order = pref === "en" ? ["en", "eng", "af", "afr"] : ["af", "afr", "en", "eng"];
+      for (const k of order) if (v[k] != null) return v[k];
+      return Object.values(v)[0] ?? "";
+    }
     return v ?? "";
   }
   // grade_ord: -2 = Gr RR, -1 = Gr R, 0-12 = numeric grades.
@@ -102,7 +108,8 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
       categoryRaw: v.category_name || "",
       klassRaw: v.class_name || "",
       affiliate: v.affiliate_name || "",
-      item: localized(v.picklist_label) || localized(v.picklist_value),
+      item: localized(v.picklist_label, /dans|dance/i.test(v.division_name || "") ? "en" : "af") ||
+        localized(v.picklist_value),
       title: typeof v.title === "string" ? v.title : "",
       invoice: v._invoice_number || "",
       paid,
