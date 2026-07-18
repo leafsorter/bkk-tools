@@ -98,6 +98,10 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
       category: categoryLabel.get(v.category_id) ?? (v.category_name || ""),
       klass: classLabel.get(v.class_id) ?? (v.class_name || ""),
       variant: variantLabel.get(v.variant_id) ?? (v.variant_name || ""),
+      divisionRaw: v.division_name || "",
+      categoryRaw: v.category_name || "",
+      klassRaw: v.class_name || "",
+      affiliate: v.affiliate_name || "",
       item: localized(v.picklist_label) || localized(v.picklist_value),
       title: typeof v.title === "string" ? v.title : "",
       invoice: v._invoice_number || "",
@@ -150,6 +154,22 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
     Qty_A4: (r) => (r.isGroup ? 0 : 1),
     Qty_A5: (r) => (r.isGroup ? 1 : 0),
     Participants: (r) => r.participants,
+    // Cer_* columns are certificate-print-ready: the ENTRY's own stored locale
+    // (no merged "x / y" labels), item capitalized.
+    // School + Affiliate, deduped: both only when genuinely different.
+    // Placeholder affiliates ("No Affiliate", "Privaat", test rows) never print.
+    Cer_School: (r) => {
+      const parts = [];
+      for (const x of [r.school, r.affiliate]) {
+        const t = (x ?? "").trim();
+        if (!t || /^(no affiliate|privaat|postfix)/i.test(t)) continue;
+        if (!parts.some((p) => p.toLowerCase() === t.toLowerCase())) parts.push(t);
+      }
+      return parts.join(", ");
+    },
+    Cer_Division: (r) => r.divisionRaw,
+    Cer_Item: (r) => [r.categoryRaw, r.item ? r.item[0].toUpperCase() + r.item.slice(1) : ""].filter(Boolean).join(" – "),
+    Cer_Level: (r) => r.klassRaw || (r.grade ? "Gr " + r.grade : ""),
   };
   for (const row of certRows) {
     for (const [key, fn] of Object.entries(CERT_DERIVED)) row[key] = fn(row);
