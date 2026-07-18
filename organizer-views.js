@@ -28,8 +28,12 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
 
   const base = localStorage.getItem("ls_web_token_cloud");
   const token = localStorage.getItem("ls_web_token");
-  if (!base || !token) {
-    alert("organizer-views: no admin token in localStorage — sign in first.");
+  const tokenExp = Number(localStorage.getItem("ls_web_token_exp") || 0);
+  const tokenExpired = tokenExp > 0 && tokenExp * (tokenExp < 1e12 ? 1000 : 1) < Date.now();
+  if (!base || !token || tokenExpired) {
+    if (confirm("organizer-views: admin session " + (tokenExpired ? "expired" : "missing") + " — go to sign-in now?")) {
+      location.href = "/signin?backTo=" + encodeURIComponent(location.pathname);
+    }
     return;
   }
 
