@@ -202,7 +202,18 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
       return parts.join(", ");
     },
     Cer_Division: (r) => r.divisionRaw,
-    Cer_Item: (r) => [r.categoryRaw, r.item ? r.item[0].toUpperCase() + r.item.slice(1) : ""].filter(Boolean).join(" – "),
+    // Category sanitized for print: "Dancers/Dansers" dropped (Dance), and a
+    // leading division-name duplication removed (word-boundary safe, so
+    // "Dramatised Poetry" survives "Drama").
+    Cer_Item: (r) => {
+      let cat = r.categoryRaw;
+      if (/dans|dance/i.test(r.divisionRaw)) cat = cat.replace(/\s+(Dancers|Dansers)\b/gi, "");
+      const div = r.divisionRaw;
+      if (div && (cat.toLowerCase() === div.toLowerCase() || cat.toLowerCase().startsWith(div.toLowerCase() + " "))) {
+        cat = cat.slice(div.length).trim();
+      }
+      return [cat, r.item ? r.item[0].toUpperCase() + r.item.slice(1) : ""].filter(Boolean).join(" – ");
+    },
     Cer_Level: (r) => r.klassRaw || (r.grade ? "Gr " + r.grade : ""),
   };
   // Whitespace-sanitize every derived value: collapse runs, trim ends.
