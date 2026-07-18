@@ -129,6 +129,7 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
       categoryRaw: v.category_name || "",
       klassRaw: v.class_name || "",
       affiliate: v.affiliate_name || "",
+      entityName: v.entity_id_display || "",
       item: localized(v.picklist_label, /dans|dance/i.test(v.division_name || "") ? "en" : "af") ||
         localized(v.picklist_value),
       title: typeof v.title === "string" ? v.title : "",
@@ -188,11 +189,12 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
     Participants: (r) => r.participants,
     // Cer_* columns are certificate-print-ready: the ENTRY's own stored locale
     // (no merged "x / y" labels), item capitalized.
-    // School + Affiliate, deduped: both only when genuinely different.
-    // Placeholder affiliates ("No Affiliate", "Privaat", test rows) never print.
+    // School sources in preference order: entrant join, then the submitting
+    // entity (school-entered groups), then affiliate — deduped; comma only when
+    // genuinely different. Placeholder affiliates never print.
     Cer_School: (r) => {
       const parts = [];
-      for (const x of [r.school, r.affiliate]) {
+      for (const x of [r.school, r.entityName, r.affiliate]) {
         const t = (x ?? "").trim();
         if (!t || /^(no affiliate|privaat|postfix)/i.test(t)) continue;
         if (!parts.some((p) => p.toLowerCase() === t.toLowerCase())) parts.push(t);
