@@ -109,28 +109,30 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
       memberId: v.member_id != null ? String(v.member_id) : "",
       participants: v.participants_count != null ? v.participants_count : "",
     };
-    if (ids.length === 0) {
-      certRows.push({
-        ...common,
-        first: v.group_name || v.entrant_first_name || "",
-        last: v.group_name ? "" : (v.entrant_last_name || ""),
-        school: "",
-        grade: "",
-        isGroup: Boolean(v.group_name),
-      });
-      continue;
-    }
-    for (const id of ids) {
+    // One row per ENTRY. Duet/trio: all names on the one certificate, Qty_A4 =
+    // number of exact copies. Group: group_name master cert.
+    const members = ids.map((id) => entrantById.get(id)).filter(Boolean);
+    const names = ids.map((id) => {
       const e = entrantById.get(id);
-      certRows.push({
-        ...common,
-        first: e ? e.first_name || "" : "(onbekende inskrywer " + id.slice(0, 8) + ")",
-        last: e ? e.last_name || "" : "",
-        school: e ? schoolName(e.school_id) : "",
-        grade: e ? gradeLabel(e.grade_ord) : "",
-        isGroup: false,
-      });
-    }
+      return e
+        ? ((e.first_name || "") + " " + (e.last_name || "")).trim()
+        : "(unknown entrant " + id.slice(0, 8) + ")";
+    });
+    const joinedNames = names.length > 1
+      ? names.slice(0, -1).join(", ") + " & " + names[names.length - 1]
+      : (names[0] ?? "");
+    const isGroup = ids.length === 0 && Boolean(v.group_name);
+    certRows.push({
+      ...common,
+      first: isGroup
+        ? v.group_name
+        : (joinedNames || ((v.entrant_first_name || "") + " " + (v.entrant_last_name || "")).trim()),
+      last: "",
+      school: [...new Set(members.map((e) => schoolName(e.school_id)).filter(Boolean))].join(", "),
+      grade: [...new Set(members.map((e) => gradeLabel(e.grade_ord)).filter(Boolean))].join(", "),
+      isGroup,
+      nMembers: ids.length,
+    });
   }
 
   // Blank titles are acceptable (they print blank on the certificate); only flag
@@ -151,8 +153,8 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
   const CERT_DERIVED = {
     Certificate_Name: (r) => (r.isGroup ? r.first : (r.first + " " + r.last).trim()),
     Certificate_Title: (r) => r.title.trim(),
-    Qty_A4: (r) => (r.isGroup ? 0 : 1),
-    Qty_A5: (r) => (r.isGroup ? 1 : 0),
+    Qty_A4: (r) => (r.isGroup ? 1 : Math.max(1, r.nMembers)),
+    Qty_A5: (r) => (r.isGroup ? "" : 0),
     Participants: (r) => r.participants,
     // Cer_* columns are certificate-print-ready: the ENTRY's own stored locale
     // (no merged "x / y" labels), item capitalized.
@@ -188,16 +190,20 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
   const divisions = [...new Set(certRows.map((r) => r.division).filter(Boolean))].sort();
   const planBySchool = new Map();
   for (const row of certRows) {
-    const key = row.school || "(no school / groups)";
-    if (!planBySchool.has(key)) {
-      planBySchool.set(key, { school: key, entries: new Set(), entrants: 0, perDiv: {} });
-    }
-    const p = planBySchool.get(key);
-    p.entries.add(row.entryId);
-    p.entrants += 1;
-    if (row.division) {
-      if (!p.perDiv[row.division]) p.perDiv[row.division] = new Set();
-      p.perDiv[row.division].add(row.entryId);
+    // Mixed-school duets list under each school — both need the entry present.
+    const keys = row.school ? row.school.split(", ") : ["(no school / groups)"];
+    const headCount = row.nMembers || Number(row.participants) || (row.isGroup ? 0 : 1);
+    for (const key of keys) {
+      if (!planBySchool.has(key)) {
+        planBySchool.set(key, { school: key, entries: new Set(), entrants: 0, perDiv: {} });
+      }
+      const p = planBySchool.get(key);
+      p.entries.add(row.entryId);
+      p.entrants += headCount;
+      if (row.division) {
+        if (!p.perDiv[row.division]) p.perDiv[row.division] = new Set();
+        p.perDiv[row.division].add(row.entryId);
+      }
     }
   }
   const planRows = [...planBySchool.values()].sort((a, b) => a.school.localeCompare(b.school));
