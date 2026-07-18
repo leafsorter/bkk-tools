@@ -10,6 +10,7 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
     entries: "blk_4963fa51e0e44103",
     entrants: "blk_993cfd14c332cc88",
     schools: "blk_71392f0f5279d5d0",
+    members: "blk_816146243d4910d9",
   };
   const FESTIVAL_DAYS = (() => {
     const days = [];
@@ -38,11 +39,22 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
     return (await r.json()).data;
   }
 
-  const [entriesRaw, entrantsRaw, schoolsRaw] = await Promise.all([
+  const [entriesRaw, entrantsRaw, schoolsRaw, membersRaw] = await Promise.all([
     fetchBlock(ENDPOINTS.entries),
     fetchBlock(ENDPOINTS.entrants),
     fetchBlock(ENDPOINTS.schools),
+    fetchBlock(ENDPOINTS.members),
   ]);
+  // Phone is NOT in any LS collection — it comes from a once-off 12s CRM
+  // harvest stored per-origin (contact_id -> phone). Empty map = column blank.
+  const phoneByContact = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("bkk_phone_map_v1") || "{}");
+    } catch {
+      return {};
+    }
+  })();
+  const memberById = new Map(membersRaw.map((m) => [String(m.values.id), m.values]));
 
   const entrantById = new Map(entrantsRaw.map((r) => [r.id, r.values]));
   const schoolById = new Map(schoolsRaw.map((r) => [r.id, r.values]));
@@ -119,6 +131,8 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
       invoice: v._invoice_number || "",
       paid,
       memberId: v.member_id != null ? String(v.member_id) : "",
+      memberEmail: memberById.get(String(v.member_id))?.email ?? "",
+      memberPhone: phoneByContact[String(memberById.get(String(v.member_id))?.contact_id ?? "")] ?? "",
       participants: v.participants_count != null ? v.participants_count : "",
     };
     // One row per ENTRY. Duet/trio: all names on the one certificate, Qty_A4 =
@@ -303,7 +317,8 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
     ["school", "School"], ["grade", "Grade"],
     ["division", "Division"], ["category", "Category"], ["klass", "Class"],
     ["variant", "Variant"], ["item", "Item"],
-    ["entryNo", "E#"], ["memberId", "Member"], ["invoice", "Invoice"], ["suspect", "Title_Flag"],
+    ["entryNo", "E#"], ["memberId", "Member"], ["memberEmail", "Member_Email"],
+    ["memberPhone", "Member_Phone"], ["invoice", "Invoice"], ["suspect", "Title_Flag"],
   ];
   let certSort = { key: "school", dir: 1 };
 
