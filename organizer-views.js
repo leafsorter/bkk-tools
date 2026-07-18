@@ -323,6 +323,31 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
     });
   }
 
+  // Per-school drill-down: one line per entry, with the same drawer/modal links
+  // as the certificate view — the two are available from every view.
+  const planExpanded = new Set();
+  function schoolEntryRows(schoolKey) {
+    const seen = new Set();
+    const out = [];
+    for (const r of certRows) {
+      const key = r.school || "(no school / groups)";
+      if (key !== schoolKey || seen.has(r.entryId)) continue;
+      seen.add(r.entryId);
+      const names = certRows.filter((x) => x.entryId === r.entryId)
+        .map((x) => x.Certificate_Name).join(", ");
+      out.push({ ...r, names });
+    }
+    return out;
+  }
+  function planExpansionHtml(schoolKey, colspan) {
+    const rows = schoolEntryRows(schoolKey);
+    return `<tr><td colspan="${colspan}" style="padding:6px 12px;background:#f8f6f2">
+<table style="width:auto">${
+      rows.map((r) =>
+        `<tr><td>${certCell(r, "entryNo") || "(unpaid)"}</td><td>${r.names}</td><td>${r.division}</td><td>${r.category}</td><td>${certCell(r, "memberId")}</td></tr>`).join("")
+    }</table></td></tr>`;
+  }
+
   function renderPlan() {
     bar.innerHTML = `<span>Assign each school to a day — totals recompute instantly. Stored locally (localStorage), not in the DB.</span>
 <button class="btn" id="ov-export-plan">Export CSV (Excel)</button>
@@ -362,13 +387,24 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
       divisions.map((d) => `<th>${d}</th>`).join("")
     }</tr></thead><tbody>${
       planRows.map((p) =>
-        `<tr><td>${p.school}</td><td><select data-school="${p.school.replaceAll('"', "&quot;")}">
+        `<tr><td><span class="lnk" data-expand="${p.school.replaceAll('"', "&quot;")}">${p.school}</span></td><td><select data-school="${p.school.replaceAll('"', "&quot;")}">
 <option value="">— day —</option>${
           FESTIVAL_DAYS.map((d) => `<option value="${d.id}" ${dayAssign[p.school] === d.id ? "selected" : ""}>${d.label}</option>`).join("")
         }</select></td><td>${p.entries.size}</td><td>${p.entrants}</td>${
           divisions.map((d) => `<td>${p.perDiv[d] ? p.perDiv[d].size : ""}</td>`).join("")
-        }</tr>`).join("")
+        }</tr>${planExpanded.has(p.school) ? planExpansionHtml(p.school, 4 + divisions.length) : ""}`).join("")
     }</tbody></table>`;
+    body.querySelectorAll("[data-expand]").forEach((el) => {
+      el.onclick = () => {
+        const s = el.dataset.expand;
+        if (planExpanded.has(s)) planExpanded.delete(s);
+        else planExpanded.add(s);
+        renderPlan();
+      };
+    });
+    body.querySelectorAll("[data-open]").forEach((a) => {
+      a.onclick = () => openInAdminBlock(a.dataset.e, a.dataset.open);
+    });
     body.querySelectorAll("select[data-school]").forEach((sel) => {
       sel.onchange = () => {
         const school = sel.dataset.school;
