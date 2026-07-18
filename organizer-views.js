@@ -26,19 +26,19 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
   document.getElementById(ROOT_ID + "-pill")?.remove();
   document.body.style.marginTop = "";
 
+  // No pre-flight token guard — the page itself is ticket-gated. The fetch is
+  // the only honest auth test: a 401 means the session lapsed, offer sign-in.
   const base = localStorage.getItem("ls_web_token_cloud");
   const token = localStorage.getItem("ls_web_token");
-  const tokenExp = Number(localStorage.getItem("ls_web_token_exp") || 0);
-  const tokenExpired = tokenExp > 0 && tokenExp * (tokenExp < 1e12 ? 1000 : 1) < Date.now();
-  if (!base || !token || tokenExpired) {
-    if (confirm("organizer-views: admin session " + (tokenExpired ? "expired" : "missing") + " — go to sign-in now?")) {
-      location.href = "/signin?backTo=" + encodeURIComponent(location.pathname);
-    }
-    return;
-  }
 
   async function fetchBlock(key) {
     const r = await fetch(base + "/api/dt-block/" + key, { headers: { "x-ls-web-token": token } });
+    if (r.status === 401 || r.status === 403) {
+      if (confirm("organizer-views: admin session lapsed — go to sign-in now?")) {
+        location.href = "/signin?backTo=" + encodeURIComponent(location.pathname);
+      }
+      throw new Error("auth lapsed on " + key);
+    }
     if (!r.ok) throw new Error("fetch " + key + " -> " + r.status);
     return (await r.json()).data;
   }
