@@ -264,19 +264,36 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
     return val;
   }
 
+  // The page's .grid-content (z-index:2) traps the drawer/modal in a low
+  // stacking context, so they can never paint above this overlay. Instead:
+  // hide the overlay while the drawer/modal is open and restore it the moment
+  // it closes — view state (filters, sort, expansions) is untouched.
   function openInAdminBlock(entryNo, what) {
     const blockRoot = document.getElementById("dt-block-blk_4963fa51e0e44103")?.shadowRoot;
     if (!blockRoot) return;
     const search = blockRoot.querySelector(".dt-adm-search");
     search.value = entryNo;
     search.dispatchEvent(new Event("input", { bubbles: true }));
-    setPageMode(true);
     setTimeout(() => {
       const td = [...blockRoot.querySelectorAll(".dt-admin-table tbody td")]
         .find((t) => t.textContent.trim() === entryNo);
       if (!td) return;
       const target = what === "member" ? td.parentElement.querySelector(".dt-adm-link") : td;
       target?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      root.style.display = "none";
+      const isOpen = () => {
+        const d = blockRoot.querySelector(".dt-adm-drawerwrap");
+        const m = blockRoot.querySelector(".dt-adm-modal");
+        return (d && d.classList.contains("open")) || (m && m.offsetHeight > 0);
+      };
+      setTimeout(() => {
+        const iv = setInterval(() => {
+          if (!isOpen()) {
+            clearInterval(iv);
+            root.style.display = "flex";
+          }
+        }, 250);
+      }, 400);
     }, 700);
   }
 
