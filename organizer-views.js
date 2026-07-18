@@ -67,18 +67,22 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
     return [];
   }
 
-  // division_name follows each entry's locale (Dans vs Dance), so views group by
-  // division_id and show one merged label per id.
-  const divisionNames = new Map();
-  for (const rec of entriesRaw) {
-    const v = rec.values;
-    if (!v.division_id || !v.division_name) continue;
-    if (!divisionNames.has(v.division_id)) divisionNames.set(v.division_id, new Set());
-    divisionNames.get(v.division_id).add(v.division_name);
+  // Name fields follow each entry's locale (Dans vs Dance, Individueel vs
+  // Individual), so views group by the id and show one merged label per id.
+  function mergedLabelMap(idKey, nameKey) {
+    const names = new Map();
+    for (const rec of entriesRaw) {
+      const v = rec.values;
+      if (!v[idKey] || !v[nameKey]) continue;
+      if (!names.has(v[idKey])) names.set(v[idKey], new Set());
+      names.get(v[idKey]).add(v[nameKey]);
+    }
+    return new Map([...names.entries()].map(([id, s]) => [id, [...s].sort().join(" / ")]));
   }
-  const divisionLabel = new Map(
-    [...divisionNames.entries()].map(([id, names]) => [id, [...names].sort().join(" / ")]),
-  );
+  const divisionLabel = mergedLabelMap("division_id", "division_name");
+  const categoryLabel = mergedLabelMap("category_id", "category_name");
+  const variantLabel = mergedLabelMap("variant_id", "variant_name");
+  const classLabel = mergedLabelMap("class_id", "class_name");
 
   // Certificate rows: one per entrant per entry; group entries (members stripped
   // server-side) collapse to a single flagged group_name row.
@@ -91,9 +95,9 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
       entryId: rec.id,
       entryNo: v.entry_number || "",
       division: divisionLabel.get(v.division_id) ?? (v.division_name || ""),
-      category: v.category_name || "",
-      klass: v.class_name || "",
-      variant: v.variant_name || "",
+      category: categoryLabel.get(v.category_id) ?? (v.category_name || ""),
+      klass: classLabel.get(v.class_id) ?? (v.class_name || ""),
+      variant: variantLabel.get(v.variant_id) ?? (v.variant_name || ""),
       item: localized(v.picklist_label) || localized(v.picklist_value),
       title: typeof v.title === "string" ? v.title : "",
       invoice: v._invoice_number || "",
