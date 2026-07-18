@@ -314,9 +314,6 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
 
   const CERT_COLS = [
     ...Object.keys(CERT_DERIVED).map((k) => [k, k]),
-    ["school", "School"], ["grade", "Grade"],
-    ["division", "Division"], ["category", "Category"], ["klass", "Class"],
-    ["variant", "Variant"], ["item", "Item"],
     ["entryNo", "E#"], ["memberId", "Member"], ["memberEmail", "Member_Email"],
     ["memberPhone", "Member_Phone"], ["invoice", "Invoice"], ["suspect", "Title_Flag"],
   ];
