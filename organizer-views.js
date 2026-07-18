@@ -15,7 +15,7 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
     const days = [];
     for (let d = 15; d <= 21; d++) {
       const date = new Date(Date.UTC(2026, 7, d));
-      const wd = ["So", "Ma", "Di", "Wo", "Do", "Vr", "Sa"][date.getUTCDay()];
+      const wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][date.getUTCDay()];
       days.push({ id: "D" + (d - 14), label: wd + " " + d + " Aug" });
     }
     return days;
@@ -28,7 +28,7 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
   const base = localStorage.getItem("ls_web_token_cloud");
   const token = localStorage.getItem("ls_web_token");
   if (!base || !token) {
-    alert("organizer-views: geen admin-token in localStorage nie — teken eers in.");
+    alert("organizer-views: no admin token in localStorage — sign in first.");
     return;
   }
 
@@ -123,18 +123,27 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
     }
   }
 
+  // Blank titles are acceptable (they print blank on the certificate); only flag
+  // titles whose CONTENT looks wrong.
   function titleSuspicion(row) {
-    const t = row.title;
-    if (row.division.toLowerCase().includes("visuele")) return "";
-    if (t === "") return "leeg";
-    if (t.trim() === "") return "geblank";
-    const tl = t.trim().toLowerCase();
-    if (tl === (row.first + " " + row.last).trim().toLowerCase()) return "naam-as-titel";
-    if (tl === row.category.trim().toLowerCase() || tl === row.division.trim().toLowerCase()) return "kategorie-as-titel";
-    if (/^(test|toets|123|n\/?a|x+|\?|\.+|-+)$/i.test(tl)) return "plekhouer";
+    const tl = row.title.trim().toLowerCase();
+    if (tl === "") return "";
+    if (tl === (row.first + " " + row.last).trim().toLowerCase()) return "name-as-title";
+    if (tl === row.category.trim().toLowerCase() || tl === row.division.trim().toLowerCase()) return "category-as-title";
+    if (/^(test|toets|123|n\/?a|x+|\?|\.+|-+)$/i.test(tl)) return "placeholder";
     return "";
   }
   for (const row of certRows) row.suspect = titleSuspicion(row);
+
+  // FE-derived certificate columns, computed from the snapshot/join data.
+  // Extend here: key = exact CSV header, value = fn(row) -> cell text.
+  const CERT_DERIVED = {
+    Certificate_Name: (r) => (r.isGroup ? r.first : (r.first + " " + r.last).trim()),
+    Certificate_Title: (r) => r.title.trim(),
+  };
+  for (const row of certRows) {
+    for (const [key, fn] of Object.entries(CERT_DERIVED)) row[key] = fn(row);
+  }
 
   // Planning pivot: school x division entry/entrant counts off the same cert rows.
   const dayAssign = (() => {
@@ -149,7 +158,7 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
   const divisions = [...new Set(certRows.map((r) => r.division).filter(Boolean))].sort();
   const planBySchool = new Map();
   for (const row of certRows) {
-    const key = row.school || "(geen skool / groepe)";
+    const key = row.school || "(no school / groups)";
     if (!planBySchool.has(key)) {
       planBySchool.set(key, { school: key, entries: new Set(), entrants: 0, perDiv: {} });
     }
@@ -189,12 +198,12 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
 #${ROOT_ID} .daytotals{display:flex;gap:14px;flex-wrap:wrap;padding:8px 0;font-weight:600}
 </style>
 <header>
-  <b>BKK Organiseerder-aansigte</b>
-  <span class="tab" data-tab="cert">Sertifikate</span>
-  <span class="tab" data-tab="plan">Beplanning</span>
-  <button class="btn gray" id="ov-refresh">Verfris data</button>
-  <button class="btn gray" id="ov-page">Wys blad</button>
-  <button class="btn gray" id="ov-close">Maak toe</button>
+  <b>BKK Organizer Views</b>
+  <span class="tab" data-tab="cert">Certificates</span>
+  <span class="tab" data-tab="plan">Planning</span>
+  <button class="btn gray" id="ov-refresh">Refresh data</button>
+  <button class="btn gray" id="ov-page">Show page</button>
+  <button class="btn gray" id="ov-close">Close</button>
   <span class="sum" id="ov-sum"></span>
 </header>
 <div class="bar" id="ov-bar"></div>
@@ -231,10 +240,11 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
   }
 
   const CERT_COLS = [
-    ["first", "Naam"], ["last", "Van"], ["school", "Skool"], ["grade", "Graad"],
-    ["division", "Afdeling"], ["category", "Kategorie"], ["klass", "Klas"],
-    ["variant", "Variant"], ["item", "Item"], ["title", "Titel"],
-    ["entryNo", "E#"], ["invoice", "Faktuur"], ["suspect", "Titel-vlag"],
+    ...Object.keys(CERT_DERIVED).map((k) => [k, k]),
+    ["school", "School"], ["grade", "Grade"],
+    ["division", "Division"], ["category", "Category"], ["klass", "Class"],
+    ["variant", "Variant"], ["item", "Item"],
+    ["entryNo", "E#"], ["invoice", "Invoice"], ["suspect", "Title_Flag"],
   ];
   let certSort = { key: "school", dir: 1 };
 
@@ -244,23 +254,23 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
       return va.localeCompare(vb, "af", { numeric: true }) * certSort.dir;
     });
     bar.innerHTML = `
-<label><input type="checkbox" id="f-paid" ${state.paidOnly ? "checked" : ""}> Slegs betaal</label>
-<label><input type="checkbox" id="f-sus" ${state.suspectsOnly ? "checked" : ""}> Slegs titel-vlae</label>
-<select id="f-div"><option value="">Alle afdelings</option>${divisions.map((d) => `<option ${state.division === d ? "selected" : ""}>${d}</option>`).join("")}</select>
-<input id="f-search" placeholder="soek…" value="${state.search}" style="font:inherit;padding:3px 6px;width:180px">
-<button class="btn" id="ov-export-cert">Voer uit CSV (Excel)</button>`;
+<label><input type="checkbox" id="f-paid" ${state.paidOnly ? "checked" : ""}> Paid only</label>
+<label><input type="checkbox" id="f-sus" ${state.suspectsOnly ? "checked" : ""}> Title flags only</label>
+<select id="f-div"><option value="">All divisions</option>${divisions.map((d) => `<option ${state.division === d ? "selected" : ""}>${d}</option>`).join("")}</select>
+<input id="f-search" placeholder="search…" value="${state.search}" style="font:inherit;padding:3px 6px;width:180px">
+<button class="btn" id="ov-export-cert">Export CSV (Excel)</button>`;
     $("#f-paid").onchange = (e) => { state.paidOnly = e.target.checked; renderCert(); };
     $("#f-sus").onchange = (e) => { state.suspectsOnly = e.target.checked; renderCert(); };
     $("#f-div").onchange = (e) => { state.division = e.target.value; renderCert(); };
     $("#f-search").oninput = (e) => { state.search = e.target.value.toLowerCase(); renderCert(); };
     $("#ov-export-cert").onclick = () =>
-      csvDownload("bkk-sertifikate-" + today + ".csv", CERT_COLS.map((c) => c[1]),
+      csvDownload("bkk-certificates-" + today + ".csv", CERT_COLS.map((c) => c[1]),
         rows.map((r) => CERT_COLS.map((c) => r[c[0]])));
 
     const nGroups = rows.filter((r) => r.isGroup).length;
     const nSus = rows.filter((r) => r.suspect).length;
     $("#ov-sum").textContent =
-      rows.length + " sertifikaat-rye (" + nGroups + " groepe sonder lede, " + nSus + " titel-vlae)";
+      rows.length + " certificate rows (" + nGroups + " groups without members, " + nSus + " title flags)";
     body.innerHTML = `<table><thead><tr>${
       CERT_COLS.map((c) => `<th data-k="${c[0]}">${c[1]}${certSort.key === c[0] ? (certSort.dir > 0 ? " ▲" : " ▼") : ""}</th>`).join("")
     }</tr></thead><tbody>${
@@ -279,17 +289,17 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
   }
 
   function renderPlan() {
-    bar.innerHTML = `<span>Ken elke skool aan &#39;n dag toe — totale herbereken dadelik. Stoor plaaslik (localStorage), nie in die DB nie.</span>
-<button class="btn" id="ov-export-plan">Voer uit CSV (Excel)</button>
-<button class="btn gray" id="ov-clear-days">Herstel dae</button>`;
+    bar.innerHTML = `<span>Assign each school to a day — totals recompute instantly. Stored locally (localStorage), not in the DB.</span>
+<button class="btn" id="ov-export-plan">Export CSV (Excel)</button>
+<button class="btn gray" id="ov-clear-days">Reset days</button>`;
     $("#ov-clear-days").onclick = () => {
       for (const k of Object.keys(dayAssign)) delete dayAssign[k];
       saveDays();
       renderPlan();
     };
     $("#ov-export-plan").onclick = () =>
-      csvDownload("bkk-beplanning-" + today + ".csv",
-        ["Skool", "Dag", "Inskrywings", "Deelnemers", ...divisions],
+      csvDownload("bkk-planning-" + today + ".csv",
+        ["School", "Day", "Entries", "Participants", ...divisions],
         planRows.map((p) => [
           p.school,
           FESTIVAL_DAYS.find((d) => d.id === dayAssign[p.school])?.label ?? "",
@@ -307,18 +317,18 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
       };
     });
     const unassigned = planRows.filter((p) => !dayAssign[p.school]).length;
-    $("#ov-sum").textContent = planRows.length + " skole, " + unassigned + " ontoegeken";
+    $("#ov-sum").textContent = planRows.length + " schools, " + unassigned + " unassigned";
 
     body.innerHTML = `<div class="daytotals">${
       totals.map((t) =>
-        `<span>${t.day.label}: ${t.schools} skole / ${t.entries} inskr. / ${t.entrants} deeln.</span>`).join("")
+        `<span>${t.day.label}: ${t.schools} schools / ${t.entries} entries / ${t.entrants} participants</span>`).join("")
     }</div>
-<table><thead><tr><th>Skool</th><th>Dag</th><th>Inskrywings</th><th>Deelnemers</th>${
+<table><thead><tr><th>School</th><th>Day</th><th>Entries</th><th>Participants</th>${
       divisions.map((d) => `<th>${d}</th>`).join("")
     }</tr></thead><tbody>${
       planRows.map((p) =>
         `<tr><td>${p.school}</td><td><select data-school="${p.school.replaceAll('"', "&quot;")}">
-<option value="">— dag —</option>${
+<option value="">— day —</option>${
           FESTIVAL_DAYS.map((d) => `<option value="${d.id}" ${dayAssign[p.school] === d.id ? "selected" : ""}>${d.label}</option>`).join("")
         }</select></td><td>${p.entries.size}</td><td>${p.entrants}</td>${
           divisions.map((d) => `<td>${p.perDiv[d] ? p.perDiv[d].size : ""}</td>`).join("")
@@ -348,7 +358,7 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
   function setPageMode(on) {
     root.classList.toggle("pagemode", on);
     document.body.style.marginTop = on ? root.offsetHeight + "px" : "";
-    $("#ov-page").textContent = on ? "Wys aansigte" : "Wys blad";
+    $("#ov-page").textContent = on ? "Show views" : "Show page";
     if (!on) render();
   }
   $("#ov-page").onclick = () => setPageMode(!root.classList.contains("pagemode"));
