@@ -22,6 +22,8 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
   })();
 
   document.getElementById(ROOT_ID)?.remove();
+  document.getElementById(ROOT_ID + "-pill")?.remove();
+  document.body.style.marginTop = "";
 
   const base = localStorage.getItem("ls_web_token_cloud");
   const token = localStorage.getItem("ls_web_token");
@@ -167,6 +169,8 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
   root.innerHTML = `
 <style>
 #${ROOT_ID}{position:fixed;inset:0;z-index:999999;background:#fff;color:#222;font:13px/1.45 system-ui,sans-serif;display:flex;flex-direction:column}
+#${ROOT_ID}.pagemode{bottom:auto}
+#${ROOT_ID}.pagemode .bar,#${ROOT_ID}.pagemode .body{display:none}
 #${ROOT_ID} header{display:flex;gap:10px;align-items:center;padding:10px 14px;background:#22333b;color:#fff;flex-wrap:wrap}
 #${ROOT_ID} header b{font-size:15px}
 #${ROOT_ID} .tab{cursor:pointer;padding:5px 12px;border-radius:5px;background:#3c4f58}
@@ -189,6 +193,7 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
   <span class="tab" data-tab="cert">Sertifikate</span>
   <span class="tab" data-tab="plan">Beplanning</span>
   <button class="btn gray" id="ov-refresh">Verfris data</button>
+  <button class="btn gray" id="ov-page">Wys blad</button>
   <button class="btn gray" id="ov-close">Maak toe</button>
   <span class="sum" id="ov-sum"></span>
 </header>
@@ -338,7 +343,19 @@ globalThis.__bkkOrganizerViewsBoot = async function boot() {
   root.querySelectorAll(".tab").forEach((t) => {
     t.onclick = () => { state.tab = t.dataset.tab; render(); };
   });
-  $("#ov-close").onclick = () => root.remove();
+  // Page mode: collapse the overlay to just the toolbar and reveal the original
+  // admin page beneath it (body pushed down so nothing is covered).
+  function setPageMode(on) {
+    root.classList.toggle("pagemode", on);
+    document.body.style.marginTop = on ? root.offsetHeight + "px" : "";
+    $("#ov-page").textContent = on ? "Wys aansigte" : "Wys blad";
+    if (!on) render();
+  }
+  $("#ov-page").onclick = () => setPageMode(!root.classList.contains("pagemode"));
+  $("#ov-close").onclick = () => {
+    document.body.style.marginTop = "";
+    root.remove();
+  };
   $("#ov-refresh").onclick = () => globalThis.__bkkOrganizerViewsBoot();
 
   render();
